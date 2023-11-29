@@ -134,7 +134,7 @@ const Home = () => {
             </div>
             {/* end of header */}
             <div className="flex flex-1 justify-between flex-col  w-full  relative">
-              <div className="flex-1 bg-green-500 max-h-full overflow-y-scroll px-1">
+              <div className="flex-1 bg-white max-h-full overflow-y-scroll px-1">
                 msg area
               </div>
               <div className="flex gap-1  border w-full h-20 px-1 items-center">
