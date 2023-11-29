@@ -9,6 +9,9 @@
     font-family: "Poppins", sans-serif;
   }
 }
+textarea {
+  resize: none;
+}
 .user-avatar {
   background: radial-gradient(
       circle farthest-corner at 35% 90%,
