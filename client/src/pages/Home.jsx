@@ -6,15 +6,22 @@ import {
   SunIcon,
 } from "@heroicons/react/24/outline";
 import { PaperAirplaneIcon } from "@heroicons/react/20/solid";
-import { EnvelopeIcon } from "@heroicons/react/20/solid";
 import { FaTwitter } from "@react-icons/all-files/fa/FaTwitter";
 import { FaLinkedin } from "@react-icons/all-files/fa/FaLinkedin";
 import { IoLogoGithub } from "@react-icons/all-files/io/IoLogoGithub";
 import axios from "axios";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Navbar from "../components/Navbar";
-
+const handleSendMessage = async (user) => {
+  const response = await axios.post("http://localhost:5000/users/chat/", data);
+  if (response.data.status === "Sent") {
+    // alert("your message was sent");
+  } else {
+    alert("something went wrong");
+  }
+};
 const Home = () => {
+  const queryClient = useQueryClient();
   const baseUrl = "http://localhost:5000/users";
 
   // const [data, setData] = useState([]);
@@ -22,10 +29,14 @@ const Home = () => {
   const [filteredData, setFilteredData] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
+  const [message, setMessage] = useState("");
+
   let currentUser = "";
+  let userID = "";
   const loggedInUser = JSON.parse(localStorage.getItem("user"));
   if (loggedInUser) {
     currentUser = loggedInUser.user.email;
+    userID = loggedInUser.user._id;
   }
   const fetchData = async () => {
     const res = await axios.get(baseUrl);
@@ -50,6 +61,36 @@ const Home = () => {
   };
   const handleItemClick = (item) => {
     setSelectedUser(item);
+  };
+  const fetchChats = async () => {
+    const id = loggedInUser.user._id;
+    const response = await axios.get(`${baseUrl}/chat/${id}`);
+    return response.data;
+  };
+  const {
+    isLoading: chatLoading,
+    isError: chatError,
+    data: messages,
+  } = useQuery({
+    queryKey: ["chats"],
+
+    queryFn: fetchChats,
+  });
+
+  const sendMessageMutation = useMutation(handleSendMessage, {
+    onSuccess: (data) => {
+      // Invalidate (refetch) the 'chats' query after sending a message
+      queryClient.invalidateQueries("chats");
+    },
+  });
+
+  const handleSentMessage = async (receiverId) => {
+    const user = {
+      receiverId,
+      senderId: userID,
+      content: message,
+    };
+    await sendMessageMutation.mutateAsync(user);
   };
 
   return (
@@ -124,6 +165,7 @@ const Home = () => {
                 />
                 <h4 className=" text-sm font-semibold">
                   {selectedUser.username.slice(1)}
+                  {selectedUser._id}
                 </h4>
               </div>
               <div className="flex items-center gap-4">
@@ -134,16 +176,61 @@ const Home = () => {
             </div>
             {/* end of header */}
             <div className="flex flex-1 justify-between flex-col  w-full  relative">
-              <div className="flex-1 bg-white max-h-full overflow-y-scroll px-1">
-                msg area
+              <div
+                className="flex-1 bg-white h-72 max-h-72 overflow-y-scroll px-1 flex  scrollbar-thin
+                scrollbar-thumb-sky-600 scrollbar-track-slate-100"
+              >
+                <div className="flex flex-col space-y-4 p-4 items-end  w-full ">
+                  {messages.map((message) => (
+                    <div
+                      key={message._id}
+                      className={`flex w-full pb-2 ${
+                        message.sender._id === userID
+                          ? "justify-end"
+                          : "justify-start"
+                      }`}
+                    >
+                      <div className="flex items-end space-x-2">
+                        {message.sender._id !== userID && (
+                          <img
+                            src={message.sender.avatar}
+                            alt={message.sender.username}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        )}
+                        <div
+                          className={`p-0.5 px-1 rounded-lg pb-2 ${
+                            message.sender._id === userID
+                              ? "bg-[#035D4D] rounded-br-none text-white text-sm"
+                              : "bg-[#373737] rounded-bl-none text-white text-sm"
+                          }`}
+                        >
+                          {message.content}
+                        </div>
+                        {message.sender._id === userID && (
+                          <img
+                            src={loggedInUser.user.avatar}
+                            alt="You"
+                            className="w-8 h-8 rounded-full ml-2 object-cover"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="flex gap-1  border w-full h-20 px-1 items-center">
                 <textarea
                   type="text"
                   className=" outline-none focus:outline-none w-full max-w-md whitespace-pre"
                   placeholder="type your message & hit send"
+                  onChange={(e) => setMessage(e.target.value)}
                 ></textarea>
-                <PaperAirplaneIcon className="h-6 w-6 text-sky-500 cursor-pointer hover:scale-110 transition-transform duration-100 ease-in-out" />
+                <PaperAirplaneIcon
+                  className="h-6 w-6 text-sky-500 cursor-pointer hover:scale-110 
+                transition-transform duration-100 ease-in-out"
+                  onClick={() => handleSentMessage(selectedUser._id)}
+                />
               </div>
             </div>
           </div>
