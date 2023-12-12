@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 import {
   MagnifyingGlassIcon,
@@ -12,17 +12,14 @@ import { IoLogoGithub } from "@react-icons/all-files/io/IoLogoGithub";
 import axios from "axios";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Navbar from "../components/Navbar";
-const handleSendMessage = async (user) => {
-  const response = await axios.post("http://localhost:5000/users/chat/", data);
-  if (response.data.status === "Sent") {
-    // alert("your message was sent");
-  } else {
-    alert("something went wrong");
-  }
-};
+import io from "socket.io-client";
+import { sendMessage } from "../../../server/controllers/users";
+
 const Home = () => {
+  const chatContainerRef = useRef(null);
   const queryClient = useQueryClient();
   const baseUrl = "http://localhost:5000/users";
+  const socket = io("http://localhost:8000");
 
   // const [data, setData] = useState([]);
   const [input, setInput] = useState("");
@@ -38,6 +35,20 @@ const Home = () => {
     currentUser = loggedInUser.user.email;
     userID = loggedInUser.user._id;
   }
+
+  useEffect(() => {
+    // Event listener for incoming messages
+    socket.on("sendMessage", (data) => {
+      // Handle incoming messages, e.g., update a message list
+      console.log("Received message:", data);
+      queryClient.invalidateQueries("chats");
+    });
+
+    // Clean up when the component unmounts
+    return () => {
+      socket.off("message");
+    };
+  }, [queryClient]);
   const fetchData = async () => {
     const res = await axios.get(baseUrl);
     let newData = res.data.filter((user) => user.email !== currentUser);
@@ -76,22 +87,42 @@ const Home = () => {
 
     queryFn: fetchChats,
   });
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      // Calculate the scroll position with a 200px gap at the bottom
+      const scrollPosition =
+        chatContainerRef.current.scrollHeight -
+        chatContainerRef.current.clientHeight;
+      chatContainerRef.current.scrollTop = scrollPosition;
+    }
+  }, [messages, selectedUser]);
 
-  const sendMessageMutation = useMutation(handleSendMessage, {
-    onSuccess: (data) => {
-      // Invalidate (refetch) the 'chats' query after sending a message
-      queryClient.invalidateQueries("chats");
-    },
-  });
-
-  const handleSentMessage = async (receiverId) => {
-    const user = {
-      receiverId,
-      senderId: userID,
-      content: message,
-    };
-    await sendMessageMutation.mutateAsync(user);
+  const handleSendMessage = async (data) => {
+    // const response = await axios.post(
+    //   "http://localhost:5000/users/chat/",
+    //   data
+    // );
+    // if (response.data.status === "Sent") {
+    //   // alert("your message was sent");
+    // } else {
+    //   alert("something went wrong");
+    // }
+    socket.emit("sendMessage", data);
   };
+
+  // const { mutateAsync: addTodoMutation } = useMutation({
+  //   mutationFn: handleSendMessage,
+  //   onSuccess: () => {
+  //     queryClient.invalidateQueries({ queryKey: ["chats"] });
+  //   },
+  // });\
+  // receiverId: selectedUser._id,
+  // senderId: userID,
+  // content: message,
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <>
@@ -131,7 +162,7 @@ const Home = () => {
                     <div className="relative">
                       <img
                         src={user.avatar}
-                        className="h-12 w-12 rounded-full p-0.5 border object-cover user-avatar"
+                        className="h-12 w-12 rounded-full p-0.5 border md:object-cover user-avatar object-center min-w-[48px]"
                         alt={user.username}
                       />
                       <div
@@ -177,6 +208,7 @@ const Home = () => {
             {/* end of header */}
             <div className="flex flex-1 justify-between flex-col  w-full  relative">
               <div
+                ref={chatContainerRef}
                 className="flex-1 bg-white h-72 max-h-72 overflow-y-scroll px-1 flex  scrollbar-thin
                 scrollbar-thumb-sky-600 scrollbar-track-slate-100"
               >
@@ -199,13 +231,13 @@ const Home = () => {
                           />
                         )}
                         <div
-                          className={`p-0.5 px-1 rounded-lg pb-2 ${
+                          className={`p-0.5 px-1 rounded-lg py-1 flex items-center ${
                             message.sender._id === userID
                               ? "bg-[#035D4D] rounded-br-none text-white text-sm"
                               : "bg-[#373737] rounded-bl-none text-white text-sm"
                           }`}
                         >
-                          {message.content}
+                          <p>{message.content}</p>
                         </div>
                         {message.sender._id === userID && (
                           <img
@@ -229,7 +261,7 @@ const Home = () => {
                 <PaperAirplaneIcon
                   className="h-6 w-6 text-sky-500 cursor-pointer hover:scale-110 
                 transition-transform duration-100 ease-in-out"
-                  onClick={() => handleSentMessage(selectedUser._id)}
+                  onClick={() => handleSendMessage}
                 />
               </div>
             </div>
@@ -241,30 +273,3 @@ const Home = () => {
 };
 
 export default Home;
-
-// {selectedUser && (
-//   <div className="fixed z-50 right-20 bg-white h-48 w-48 p-2 flex flex-col justify-center border shadow-lg top-[50%] translate-y-[-50%] rounded-md  dark:text-white">
-//     <img
-//       src={selectedUser.avatar}
-//       className="h-16 w-16 rounded-full p-0.5 border mx-auto object-cover user-avatar"
-//     />
-//     <div className="flex justify-center items-center gap-1">
-//       <div
-//         className={`h-0.5 w-1.5 rounded-full  ${
-//           selectedUser.loggedin ? "bg-green-600" : "bg-transparent"
-//         }`}
-//       ></div>
-//       <h4 className=" text-sm font-semibold">{selectedUser.name}</h4>
-//     </div>
-//     <p className="text-xs text-center">{selectedUser.tagline}</p>
-//     <div className="h-0.5 w-[60%] dark:bg-gray-400 bg-gray-300 rounded-md mx-auto my-3"></div>
-//     <div className="flex justify-center gap-3">
-//       <a href={`mailto:${selectedUser.email}`}>
-//         <EnvelopeIcon className="h-5 w-5 cursor-pointer" />
-//       </a>
-//       <IoLogoGithub className="h-5 w-5 cursor-pointer" />
-//       <FaLinkedin className="h-5 w-5 cursor-pointer hover:text-sky-500" />
-//       <FaTwitter className="h-5 w-5 cursor-pointer hover:text-sky-500" />
-//     </div>
-//   </div>
-// )}
